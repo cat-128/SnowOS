@@ -16,7 +16,7 @@ int strcmp(const char* s1, const char* s2) {
         s1++;
         s2++;
     }
-    return *(unsigned char*)s1 - *(unsigned char*)s2;
+    return (unsigned char)(*s1) - (unsigned char)(*s2);
 }
 
 void outb(unsigned short port, unsigned char val) {
@@ -54,7 +54,32 @@ public:
             vm[index+1] = 0x0F;
             x++;
         }
-        if (x >= 80) { x = 0; y++; }
+        
+        if (x >= 80) { 
+            x = 0; 
+            y++; 
+        }
+
+        if (y >= 25){
+            scroll();
+        }
+    }
+
+    // this does the scroll effect
+    void scroll(){
+
+        int one_row = 80 * 2;
+        for(int i = 0; i < 80 * 24 * 2; i++){
+            vm[i] = vm[i + one_row];
+        }
+
+        for(int i = 80 * 24 * 2; i < 80 * 24 * 2; i += 2){
+            vm[i] = ' ';
+            vm[i + 1] = color;
+        }
+        
+        y = 24;
+        x = 0;
     }
 
     void print(const char* str) {
@@ -108,10 +133,6 @@ public:
         } else if (strcmp(buffer, "halt") == 0) {
             vga->print("System Halted.");
             asm volatile("hlt");
-        } else if(strcmp(buffer, "osama") == 0){
-            vga->print("Ay how do you know this?, anyways stop gooning");
-        } else if (strcmp(buffer, "charlie-kirk") == 0){
-            vga->print("WE ARE CHARLIE KIRK..");
         } else if (index > 0) {
             vga->print("Unknown command: ");
             vga->print(buffer);
