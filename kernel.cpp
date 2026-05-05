@@ -10,6 +10,113 @@ static inline unsigned char inb(unsigned short port) {
     return val;
 }
 
+// String utilities
+int strcmp(const char* s1, const char* s2) {
+    while (*s1 && (*s1 == *s2)) {
+        s1++;
+        s2++;
+    }
+    return *(unsigned char*)s1 - *(unsigned char*)s2;
+}
+
+void outb(unsigned short port, unsigned char val) {
+    asm volatile ( "outb %0, %1" : : "a"(val), "Nd"(port) );
+}
+
+
+class VGADriver {
+public:
+    int x, y;
+    volatile char* vm = (volatile char*)0xB8000;
+    const char color = 0x0F; // if yall want change colour from here
+
+    VGADriver() : x(0), y(0) {}
+
+    void clear() {
+        for (int i = 0; i < 80 * 25 * 2; i += 2) {
+            vm[i] = ' ';
+            vm[i+1] = color;
+        }
+    }
+
+    void put_char(char c) {
+        if (c == '\n') {
+            x = 0; y++;
+        } else if (c == '\b') {
+            if (x > 2) {
+                x--;
+                int index = (y * 80 + x) * 2;
+                vm[index] = ' ';
+            }
+        } else {
+            int index = (y * 80 + x) * 2;
+            vm[index] = c;
+            vm[index+1] = 0x0F;
+            x++;
+        }
+        if (x >= 80) { x = 0; y++; }
+    }
+
+    void print(const char* str) {
+        for (int i = 0; str[i] != '\0'; i++) put_char(str[i]);
+    }
+};
+
+class Shell {
+    char buffer[256];
+    int index = 0;
+    VGADriver* vga;
+
+public:
+    Shell(VGADriver* v) : vga(v) {
+        for(int i=0; i<256; i++) buffer[i] = 0;
+    }
+
+    void prompt() {
+        vga->print("\nsnowOS> ");
+        index = 0;
+        for(int i=0; i<256; i++) buffer[i] = 0;
+    }
+
+    void handle_char(char c) {
+        if (c == '\n') {
+            execute_command();
+            prompt();
+        } else if (c == '\b') {
+            if (index > 0) {
+                index--;
+                buffer[index] = 0;
+                vga->put_char('\b');
+            }
+        } else {
+            if (index < 255) {
+                buffer[index++] = c;
+                vga->put_char(c);
+            }
+        }
+    }
+
+    void execute_command() {
+        vga->print("\n");
+        if (strcmp(buffer, "help") == 0) {
+            vga->print("Commands: help, version, clear, halt");
+        } else if (strcmp(buffer, "version") == 0) {
+            vga->print("snowOS v0.0.2 (Shell Edition)");
+        } else if (strcmp(buffer, "clear") == 0) {
+            vga->clear();
+        } else if (strcmp(buffer, "halt") == 0) {
+            vga->print("System Halted.");
+            asm volatile("hlt");
+        }
+        else if(strcmp(buffer, "osama") == 0){
+            vga->print("Ay how do you know this?, anyways stop gooning");
+        } else if (index > 0) {
+            vga->print("Unknown command: ");
+            vga->print(buffer);
+        }
+    }
+};
+
 class Keyboard{
 public:
 
@@ -34,42 +141,11 @@ public:
             case 0x1F: return 's'; case 0x14: return 't'; case 0x16: return 'u';
             case 0x2F: return 'v'; case 0x11: return 'w'; case 0x2D: return 'x';
             case 0x15: return 'y'; case 0x2C: return 'z';
-            case 0x39: return ' '; // Spacebar
-            case 0x1C: return '\n'; // Enter key
-            default: return 0; // ignore the rest of the key. goon on them
+            case 0x39: return ' '; case 0x1C: return '\n'; case 0x0E: return '\b';
+            default: return 0;
         }
     }
 private:
-};
-
-class VGADriver {
-public:
-    int x, y;
-    volatile char* vm = (volatile char*)0xB8000;
-    const char color = 0xF0;
-
-    VGADriver() : x(0), y(0) {}
-
-    void clear() {
-        for (int i = 0; i < 80 * 25 * 2; i += 2) {
-            vm[i] = ' ';
-            vm[i+1] = color;
-        }
-    }
-
-    void print(const char* str) {
-        for (int i = 0; str[i] != '\0'; i++) {
-            if (str[i] == '\n') {
-                x = 0;
-                y++;
-            } else {
-                int index = (y * 80 + x) * 2;
-                vm[index] = str[i];
-                vm[index+1] = color;
-                x++;
-            }
-        }
-    }
 };
 
 // Main function
@@ -78,30 +154,22 @@ void kernel_main() {
     // objects
     VGADriver vga;
     Keyboard KeyBoard;
+    Shell shell(&vga);
     
     vga.clear();
     vga.print("SnowOS is now running\n");
     vga.print("Type something, let's see if it goons on you or not?\n");
+    shell.prompt();
 
     // Keyboard typing
-    while(true){
-        if(KeyBoard.data_ready()){
-
-            // for yall info: ts gets the scancode 
-            unsigned char scanCode = KeyBoard.get_scancode();
-
-            // if it fits the table does this
-            if(scanCode < 0x80){
-                // it changes the scancode to the character from the table above 
-                char character = KeyBoard.scancode_to_char(scanCode);
-                if(character != 0){
-                    // saves it to an array and prints out the character
-                    char str[2] = {character, '\0'};
-                    vga.print(str);
-                }
+    while(1) {
+        if (KeyBoard.data_ready()) {
+            unsigned char scancode = KeyBoard.get_scancode();
+            if (scancode < 0x80) {
+                char c = KeyBoard.scancode_to_char(scancode);
+                if (c != 0) shell.handle_char(c);
             }
         }
-
     }
 }
 
