@@ -97,19 +97,21 @@ public:
     }
 
     void execute_command() {
+        // We got the whole goon commands up in here
         vga->print("\n");
         if (strcmp(buffer, "help") == 0) {
             vga->print("Commands: help, version, clear, halt");
         } else if (strcmp(buffer, "version") == 0) {
-            vga->print("snowOS v0.0.2 (Shell Edition)");
+            vga->print("snowOS v0.0.2 (Goon Edition)");
         } else if (strcmp(buffer, "clear") == 0) {
             vga->clear();
         } else if (strcmp(buffer, "halt") == 0) {
             vga->print("System Halted.");
             asm volatile("hlt");
-        }
-        else if(strcmp(buffer, "osama") == 0){
+        } else if(strcmp(buffer, "osama") == 0){
             vga->print("Ay how do you know this?, anyways stop gooning");
+        } else if (strcmp(buffer, "charlie-kirk") == 0){
+            vga->print("WE ARE CHARLIE KIRK..");
         } else if (index > 0) {
             vga->print("Unknown command: ");
             vga->print(buffer);
@@ -140,7 +142,7 @@ public:
             case 0x19: return 'p'; case 0x10: return 'q'; case 0x13: return 'r';
             case 0x1F: return 's'; case 0x14: return 't'; case 0x16: return 'u';
             case 0x2F: return 'v'; case 0x11: return 'w'; case 0x2D: return 'x';
-            case 0x15: return 'y'; case 0x2C: return 'z';
+            case 0x15: return 'y'; case 0x2C: return 'z'; case 0x0C: return '-';
             case 0x39: return ' '; case 0x1C: return '\n'; case 0x0E: return '\b';
             default: return 0;
         }
